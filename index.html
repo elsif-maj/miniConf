@@ -1,147 +1,213 @@
 <!DOCTYPE html>
 <html>
-<!--
-    SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
-    SPDX-License-Identifier: MIT
-    
-    SPDX-FileCopyrightText: 2024 Michael Johnson <https://github.com/elsif-maj>
-    SPDX-License-Identifier: MIT
-  -->
 
 <head>
   <meta charset="utf-8">
+  <title>miniConf</title>
+  <style>
+    body {
+      background-color: #333;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+      font-family: Arial, sans-serif;
+    }
+
+
+#videoContainer {
+  position: relative;
+  width: 100%; /* Adjust the width of the container as needed */
+  height: 80%; /* Adjust the height of the container as needed */
+  background-color: #fff;
+  border-radius: 10px;
+  overflow: hidden;
+  display: flex; /* Use flexbox layout */
+  justify-content: center; /* Center the video elements horizontally with equal spacing */
+  align-items: center; /* Center the video elements vertically */
+}
+
+#videoContainer video {
+  width: auto; /* Let the browser decide the width of the video element */
+  height: auto; /* Let the browser decide the height of the video element */
+  max-width: 100%; /* Limit the maximum width of the video element to prevent it from exceeding the container's width */
+  max-height: 100%; /* Limit the maximum height of the video element to prevent it from exceeding the container's height */
+  object-fit: cover; /* Ensure the video fills the container */
+}
+ 
+    /*
+    #videoContainer {
+      position: relative;
+      width: 80%;
+      height: 80%;
+      background-color: #fff;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    #videoContainer video {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+	*/
+
+    #logo {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      color: #fff;
+      font-size: 24px;
+    }
+
+    #button {
+      position: absolute;
+      bottom: 10px;
+      left: 10px;
+      background-color: #ff4444;
+      color: #fff;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+  </style>
 </head>
 
 <body>
-  <h3> Local Video </h3>
-  <video id="localVideo" width="160" height="120" autoplay muted></video> <br />
+  <div id="videoContainer">
+    <h1 id="logo">miniConf</h1>
+    <video id="localVideo" autoplay muted></video>
+    <div id="remoteVideos"></div>
+    <button id="button">Close Connection</button>
+  </div>
 
-  <h3> Remote Video </h3>
-  <div id="remoteVideos"></div> <br />
+  <script>
+    navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: true
+      })
+      .then(stream => {
+        let pc = new RTCPeerConnection()
+        let disconnectButton = document.getElementById('button')
 
-  <h3> Logs </h3>
-  <div id="logs"></div>
+        pc.ontrack = function(event) {
+          if (event.track.kind === 'audio') {
+            return
+          }
 
-  <button id="button">close connection</button>
-</body>
+          let el = document.createElement(event.track.kind)
+          el.srcObject = event.streams[0]
+          el.autoplay = true
+          el.controls = true
+          el.setAttribute('playsinline', true); // Required for iOS Safari
+          document.getElementById('remoteVideos').appendChild(el)
 
-<script>
-  navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-    .then(stream => {
-      let pc = new RTCPeerConnection()
-      let disconnectButton = document.getElementById('button')
+          event.track.onmute = function(event) {
+            el.play()
+          }
 
-      
-      pc.ontrack = function (event) {
-        if (event.track.kind === 'audio') {
-          return
-        }
-
-        let el = document.createElement(event.track.kind)
-        el.srcObject = event.streams[0]
-        el.autoplay = true
-        el.controls = true
-        document.getElementById('remoteVideos').appendChild(el)
-
-        event.track.onmute = function (event) {
-          el.play()
-        }
-
-        event.streams[0].onremovetrack = ({ track }) => {
-          if (el.parentNode) {
-            el.parentNode.removeChild(el)
+          event.streams[0].onremovetrack = ({
+            track
+          }) => {
+            if (el.parentNode) {
+              el.parentNode.removeChild(el)
+            }
           }
         }
-      }
 
-      document.getElementById('localVideo').srcObject = stream
-      stream.getTracks().forEach(track => pc.addTrack(track, stream))
+        document.getElementById('localVideo').srcObject = stream
+        stream.getTracks().forEach(track => pc.addTrack(track, stream))
 
-      let ws = new WebSocket("{{.}}")
+        let ws = new WebSocket("{{.}}")
 
-      // Send a heartbeat every 5 seconds
-      setInterval(() => {
-        if (ws.readyState === ws.OPEN) {
-          ws.send(JSON.stringify({ event: 'heartbeat', data: 'ping' }));
-        }
-      }, 5000);
-     
-      // MUH ATTEMPTS
-      disconnectButton.addEventListener('click', function(e) {
-        pc.close()
-        ws.close()
-      })
+        // Send a heartbeat every 5 seconds
+        setInterval(() => {
+          if (ws.readyState === ws.OPEN) {
+            ws.send(JSON.stringify({
+              event: 'heartbeat',
+              data: 'ping'
+            }));
+          }
+        }, 5000);
 
-      window.addEventListener('beforeunload', function (event) {
-        if (document.visibilityState === 'hidden' && pc) {
-          console.log('THIS FIRED')
-          pc.close();
-          ws.close();
-          pc = null;
-        }
-      });
-      // END OF MUH ATTEMPTS
-      
-      pc.onicecandidate = e => {
-        if (!e.candidate) {
-          return
-        }
+        disconnectButton.addEventListener('click', function(e) {
+          pc.close()
+          ws.close()
+        })
 
-        ws.send(JSON.stringify({ event: 'candidate', data: JSON.stringify(e.candidate) }))
-      }
+        window.addEventListener('beforeunload', function(event) {
+          if (document.visibilityState === 'hidden' && pc) {
+            console.log('THIS FIRED')
+            pc.close();
+            ws.close();
+            pc = null;
+          }
+        });
 
-      ws.onclose = function (evt) {
-        window.alert("Websocket has closed with code: " + evt.code + " reason: " + evt.reason)
-      }
-
-      ws.onmessage = function (evt) {
-        let msg = JSON.parse(evt.data)
-        if (!msg) {
-          return console.log('failed to parse msg')
-        }
-
-        switch (msg.event) {
-          case 'offer':
-            let offer = JSON.parse(msg.data)
-            if (!offer) {
-              return console.log('failed to parse answer')
-            }
-
-            // New version:
-            pc.setRemoteDescription(offer)
-              .then(() => pc.createAnswer())
-              .then(answer => {
-                pc.setLocalDescription(answer)
-                ws.send(JSON.stringify({ event: 'answer', data: JSON.stringify(answer) }))
-              })
-              .catch(error => {
-                console.error('Error during setRemoteDescription/createAnswer: ', error)
-              })
-
-            // The rest of this is original version, including the 'return' :
-            // pc.setRemoteDescription(offer)
-            // pc.createAnswer().then(answer => {
-            //   pc.setLocalDescription(answer)
-            //   ws.send(JSON.stringify({event: 'answer', data: JSON.stringify(answer)}))
-            // })
-
+        pc.onicecandidate = e => {
+          if (!e.candidate) {
             return
+          }
 
-          case 'candidate':
-            let candidate = JSON.parse(msg.data)
-            if (!candidate) {
-              return console.log('failed to parse candidate')
-            }
-
-            pc.addIceCandidate(candidate)
+          ws.send(JSON.stringify({
+            event: 'candidate',
+            data: JSON.stringify(e.candidate)
+          }))
         }
-      }
 
-      ws.onerror = function (evt) {
-        console.log("ERROR (evt.data): " + evt.data)
-        console.log("ERROR (evt): " + evt)
-      }
-    }).catch(window.alert)
-</script>
+        ws.onclose = function(evt) {
+          window.alert("Websocket has closed with code: " + evt.code + " reason: " + evt.reason)
+        }
+
+        ws.onmessage = function(evt) {
+          let msg = JSON.parse(evt.data)
+          if (!msg) {
+            return console.log('failed to parse msg')
+          }
+
+          switch (msg.event) {
+            case 'offer':
+              let offer = JSON.parse(msg.data)
+              if (!offer) {
+                return console.log('failed to parse answer')
+              }
+
+              // New version:
+              pc.setRemoteDescription(offer)
+                .then(() => pc.createAnswer())
+                .then(answer => {
+                  pc.setLocalDescription(answer)
+                  ws.send(JSON.stringify({
+                    event: 'answer',
+                    data: JSON.stringify(answer)
+                  }))
+                })
+                .catch(error => {
+                  console.error('Error during setRemoteDescription/createAnswer: ', error)
+                })
+
+              return
+
+            case 'candidate':
+              let candidate = JSON.parse(msg.data)
+              if (!candidate) {
+                return console.log('failed to parse candidate')
+              }
+
+              pc.addIceCandidate(candidate)
+          }
+        }
+
+        ws.onerror = function(evt) {
+          console.log("ERROR (evt.data): " + evt.data)
+          console.log("ERROR (evt): " + evt)
+        }
+      }).catch(window.alert)
+  </script>
+</body>
 
 </html>
+
