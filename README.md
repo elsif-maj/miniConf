@@ -1,6 +1,6 @@
 # Readme
 
-2/17: -Going to add simulcast
+2/18: -Added ui branch and simul branch to mess with simulcast
 
 I'm going to come back to this and make a basic but attractive UI, as well as make it as easy to deploy as possible and write up a basic walkthrough for doing so here in the README.
 
