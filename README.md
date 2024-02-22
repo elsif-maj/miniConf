@@ -1,8 +1,12 @@
 # Readme
 
-2/18: -Added ui branch and simul branch to mess with simulcast.
+## Todos
 
-I'm going to come back to this and make a basic but attractive UI, as well as make it as easy to deploy as possible and write up a basic walkthrough for doing so here in the README.
+- Add simulcast
+- Work on congestion control
+- Create presentable UI
+
+## Readme Todos
 
 To include in this readme:
 
